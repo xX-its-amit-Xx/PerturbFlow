@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, fields, is_dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, get_type_hints
 
 import yaml
 
@@ -124,6 +124,15 @@ class PerturbFlowConfig:
     report: ReportConfig = field(default_factory=ReportConfig)
 
 
+def _resolved_field_types(cls: type) -> dict[str, type]:
+    """Return field-name -> resolved type for a dataclass.
+
+    Necessary because we use ``from __future__ import annotations``, which
+    makes ``Field.type`` a string at runtime.
+    """
+    return get_type_hints(cls)
+
+
 def _build(cls: type, data: dict[str, Any] | None, *, path: str) -> Any:
     """Construct a dataclass instance, validating that no unknown keys slipped in."""
     if data is None:
@@ -134,13 +143,15 @@ def _build(cls: type, data: dict[str, Any] | None, *, path: str) -> Any:
     unknown = set(data) - allowed
     if unknown:
         raise ConfigError(f"{path}: unknown key(s) {sorted(unknown)} (allowed: {sorted(allowed)})")
+    resolved = _resolved_field_types(cls)
     kwargs: dict[str, Any] = {}
     for f in fields(cls):
         if f.name not in data:
             continue
         value = data[f.name]
-        if is_dataclass(f.type):
-            kwargs[f.name] = _build(f.type, value, path=f"{path}.{f.name}")
+        field_type = resolved.get(f.name, f.type)
+        if isinstance(field_type, type) and is_dataclass(field_type):
+            kwargs[f.name] = _build(field_type, value, path=f"{path}.{f.name}")
         elif (
             f.name == "exclude_gene_prefixes" and value is not None and not isinstance(value, tuple)
         ):
@@ -159,14 +170,7 @@ def load_config(path: str | Path) -> PerturbFlowConfig:
         raw = yaml.safe_load(fh) or {}
     if not isinstance(raw, dict):
         raise ConfigError(f"Top-level config must be a mapping, got {type(raw).__name__}")
-    allowed = {f.name for f in fields(PerturbFlowConfig)}
-    unknown = set(raw) - allowed
-    if unknown:
-        raise ConfigError(f"Unknown top-level section(s) {sorted(unknown)}")
-    sub: dict[str, Any] = {}
-    for f in fields(PerturbFlowConfig):
-        sub[f.name] = _build(f.type, raw.get(f.name), path=f.name)
-    return PerturbFlowConfig(**sub)
+    return from_dict(raw)
 
 
 def from_dict(data: dict[str, Any]) -> PerturbFlowConfig:
@@ -175,7 +179,9 @@ def from_dict(data: dict[str, Any]) -> PerturbFlowConfig:
     unknown = set(data) - allowed
     if unknown:
         raise ConfigError(f"Unknown top-level section(s) {sorted(unknown)}")
+    resolved = _resolved_field_types(PerturbFlowConfig)
     sub: dict[str, Any] = {}
     for f in fields(PerturbFlowConfig):
-        sub[f.name] = _build(f.type, data.get(f.name), path=f.name)
+        field_type = resolved[f.name]
+        sub[f.name] = _build(field_type, data.get(f.name), path=f.name)
     return PerturbFlowConfig(**sub)

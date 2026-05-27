@@ -53,8 +53,9 @@ def compute_perturbation_signature(
     perturbation-attributable expression change from background variability
     across cells.
 
-    After this runs, ``adata.layers["perturbation_signature"]`` contains a
-    dense (cells × genes) matrix of log-normalized residuals.
+    After this runs, ``adata.layers["X_pert"]`` (pertpy's convention) and
+    ``adata.layers["perturbation_signature"]`` (alias for back-compat) both
+    contain a dense (cells × genes) matrix of log-normalized residuals.
 
     We log-normalize and PCA-embed if those steps haven't already been done,
     because the signature is meaningful only on a comparable space. If you
@@ -75,16 +76,23 @@ def compute_perturbation_signature(
     if find_spec("pertpy") is not None:
         import pertpy as pt
 
+        # pertpy expects a PCA representation in adata.obsm['X_pca']; if absent,
+        # compute one on a log-normalized copy so the kNN signature is meaningful.
+        _ensure_pca(adata, layer=layer)
         mix = pt.tl.Mixscape()
         mix.perturbation_signature(
             adata,
-            pert_key=perturbation_key,
-            control=cfg.control_label,
+            perturbation_key,
+            cfg.control_label,
             n_neighbors=cfg.n_neighbors,
             split_by=None,
-            layer=layer,
+            use_rep="X_pca",
+            n_dims=min(15, adata.obsm["X_pca"].shape[1]),
             copy=False,
         )
+        # pertpy writes to layers['X_pert']; expose under the perturbflow name too.
+        if "X_pert" in adata.layers:
+            adata.layers["perturbation_signature"] = adata.layers["X_pert"]
         logger.info(
             "Computed perturbation signature via pertpy.tl.Mixscape (k=%d neighbors)",
             cfg.n_neighbors,
@@ -123,12 +131,13 @@ def run_mixscape(
         import pertpy as pt
 
         mix = pt.tl.Mixscape()
+        # pertpy's mixscape defaults to reading layers["X_pert"], which our
+        # compute_perturbation_signature populates (see :func:`compute_perturbation_signature`).
         mix.mixscape(
             adata,
-            labels=perturbation_key,
-            control=cfg.control_label,
+            perturbation_key,
+            cfg.control_label,
             min_de_genes=5,
-            layer="perturbation_signature",
             pval_cutoff=cfg.mixscape_pval_cutoff,
             copy=False,
         )
@@ -154,6 +163,24 @@ def run_mixscape(
 
     _fallback_mixscape(adata, cfg=cfg, perturbation_key=perturbation_key)
     return adata
+
+
+def _ensure_pca(adata: ad.AnnData, *, layer: str | None) -> None:
+    """Make sure ``adata.obsm['X_pca']`` exists, computing one on a log-normalized copy.
+
+    We compute on a copy so the caller's ``X`` stays as raw counts (the DE
+    module depends on raw counts being in ``X``).
+    """
+    if "X_pca" in adata.obsm:
+        return
+    tmp = adata.copy()
+    if layer is None:
+        sc.pp.normalize_total(tmp, target_sum=1e4)
+        sc.pp.log1p(tmp)
+    sc.pp.scale(tmp, max_value=10)
+    n_comps = min(30, min(tmp.shape) - 1)
+    sc.tl.pca(tmp, n_comps=n_comps, random_state=0)
+    adata.obsm["X_pca"] = tmp.obsm["X_pca"]
 
 
 # ----------------------------------------------------------------------
