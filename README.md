@@ -21,7 +21,7 @@ so you can defend it to a reviewer.
 
 [![CI](https://github.com/xX-its-amit-Xx/PerturbFlow/actions/workflows/ci.yml/badge.svg)](https://github.com/xX-its-amit-Xx/PerturbFlow/actions/workflows/ci.yml)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](pyproject.toml)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](pyproject.toml)
 
 ---
 

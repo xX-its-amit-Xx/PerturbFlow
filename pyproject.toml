@@ -7,7 +7,7 @@ name = "perturbflow"
 version = "0.1.0"
 description = "Opinionated, reproducible Perturb-seq analysis pipeline: guide assignment, Mixscape-style escape detection, pseudobulk DE, pathway scoring."
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 license = { text = "GPL-3.0-or-later" }
 authors = [{ name = "Amit Shenoy" }]
 keywords = [
@@ -23,8 +23,8 @@ classifiers = [
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Scientific/Engineering :: Bio-Informatics",
 ]
 
@@ -95,7 +95,7 @@ include = [
 # ---------- Ruff ----------
 [tool.ruff]
 line-length = 100
-target-version = "py311"
+target-version = "py312"
 src = ["src", "tests"]
 
 [tool.ruff.lint]
@@ -130,7 +130,7 @@ indent-style = "space"
 
 # ---------- mypy ----------
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.12"
 strict = false
 warn_redundant_casts = true
 warn_unused_ignores = true
