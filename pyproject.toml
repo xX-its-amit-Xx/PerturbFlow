@@ -45,14 +45,14 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# pertpy's transitive deps (filelock) aren't always pulled in on every
-# Python minor version; pin explicitly so the install graph is stable.
-mixscape = ["pertpy>=0.8", "filelock>=3.13"]
+# pertpy >=1.1 fixed sklearn-1.6+ array-api compat; filelock is a
+# transitive that's not pulled in on every Python minor version.
+mixscape = ["pertpy>=1.1", "filelock>=3.13"]
 de = ["pydeseq2>=0.4"]
 pathways = ["decoupler>=1.6", "omnipath>=1.0"]
 workflow = ["snakemake>=8"]
 all = [
-    "pertpy>=0.8",
+    "pertpy>=1.1",
     "filelock>=3.13",
     "pydeseq2>=0.4",
     "decoupler>=1.6",
