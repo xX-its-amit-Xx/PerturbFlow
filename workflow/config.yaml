@@ -1,0 +1,84 @@
+# PerturbFlow run configuration.
+# Every key here maps 1:1 to a setting consumed by src/perturbflow/config.py.
+# Save your own copy of this file and pass it via `perturbflow run --config <path>`.
+
+run:
+  name: example_run
+  outdir: perturbflow                  # all outputs land under {outdir}/{qc,de,figures,report.html}
+  seed: 0
+  log_level: INFO
+
+input:
+  # Provide ONE of: matrix_h5 (10x .h5), matrix_mtx_dir (10x MTX directory), or h5ad.
+  matrix_h5: data/filtered_feature_bc_matrix.h5
+  # matrix_mtx_dir: data/filtered_feature_bc_matrix
+  # h5ad: data/raw.h5ad
+
+  # Guide call CSV. Required columns: cell_barcode, guide_id, umi_count.
+  guide_calls: data/guide_calls.csv
+
+  # Guide -> target gene map. Required columns: guide_id, target_gene, is_control.
+  # `is_control` boolean marks non-targeting / scrambled guides.
+  guide_metadata: data/guide_metadata.csv
+
+  # Optional sample column in the cell metadata for pseudobulk replicates.
+  # If null, cells from the same perturbation are split into pseudo-replicates
+  # by deterministic hashing of cell barcode (see de.py:make_pseudo_replicates).
+  sample_col: null
+  n_pseudo_replicates: 3
+
+qc:
+  min_genes_per_cell: 500
+  max_pct_mito: 20.0
+  min_cells_per_gene: 10
+  mito_prefix: "MT-"                   # use "mt-" for mouse
+
+guide_assignment:
+  # Minimum UMI count for a guide to be considered "called" in a cell.
+  min_guide_umi: 5
+  # Fold-difference required between the top and second-best guide call before we
+  # call a cell singly-assigned. Below this the cell is labelled "ambiguous".
+  dominance_ratio: 2.0
+  # Cells with >max_guides above min_guide_umi are flagged as multi-guide doublets.
+  max_guides: 1
+  # Drop cells that fail assignment from downstream analysis (set false to retain
+  # for separate QC inspection).
+  drop_unassigned: true
+
+perturbation_analysis:
+  enable_mixscape: true
+  control_label: "NT"                  # value in adata.obs['perturbation'] for control cells
+  # Local perturbation signature: subtract mean expression of k nearest NT cells.
+  n_neighbors: 20
+  # Posterior probability threshold above which a cell is called "perturbed (KO)".
+  # Cells below are called "escaped (NP)".
+  mixscape_pval_cutoff: 5.0e-2
+  # Genes to exclude from the perturbation signature (housekeeping, ribosomal, etc.).
+  exclude_gene_prefixes: ["RPS", "RPL", "MT-"]
+
+de:
+  enable: true
+  # Minimum pseudobulk replicates and cells per perturbation, else skipped with warning.
+  min_replicates_per_group: 2
+  min_cells_per_replicate: 10
+  # Effect-size and significance thresholds for the "significant" column in DE tables.
+  lfc_threshold: 1.0
+  padj_threshold: 0.05
+  # Restrict to KO (perturbed) cells only, dropping escaped cells from numerator.
+  use_mixscape_filter: true
+
+downstream:
+  enable_pathway_scoring: true
+  # decoupler network: "hallmarks" | "reactome" | "progeny" | path to a TSV with
+  # columns source, target, weight (decoupler's standard schema).
+  pathway_net: hallmarks
+  # Method passed to decoupler.decouple. "ulm" is the standard choice for DE stats.
+  pathway_method: ulm
+  # UMAP cell-state effect maps per perturbation.
+  emit_umap_overlays: true
+
+report:
+  enable: true
+  # If false, only writes per-perturbation Markdown cards (one per perturbation)
+  # and skips the bundled HTML.
+  bundle_html: true

@@ -1,0 +1,70 @@
+{
+  "jobDefinitionName": "perturbflow",
+  "type": "container",
+  "platformCapabilities": ["EC2"],
+  "propagateTags": true,
+  "retryStrategy": {
+    "attempts": 2,
+    "evaluateOnExit": [
+      { "onStatusReason": "Host EC2*", "action": "RETRY" },
+      { "onReason": "*", "action": "EXIT" }
+    ]
+  },
+  "timeout": {
+    "attemptDurationSeconds": 43200
+  },
+  "containerProperties": {
+    "image": "ghcr.io/xx-its-amit-xx/perturbflow:latest",
+    "command": [
+      "run",
+      "--config",
+      "Ref::config_path",
+      "--outdir",
+      "Ref::output_path"
+    ],
+    "jobRoleArn": "arn:aws:iam::REPLACE_ACCOUNT_ID:role/PerturbFlowJobRole",
+    "executionRoleArn": "arn:aws:iam::REPLACE_ACCOUNT_ID:role/PerturbFlowExecutionRole",
+    "resourceRequirements": [
+      { "type": "VCPU", "value": "16" },
+      { "type": "MEMORY", "value": "65536" }
+    ],
+    "environment": [
+      { "name": "OPENBLAS_NUM_THREADS", "value": "1" },
+      { "name": "OMP_NUM_THREADS", "value": "1" },
+      { "name": "MPLBACKEND", "value": "Agg" },
+      { "name": "NUMBA_CACHE_DIR", "value": "/tmp/numba_cache" },
+      { "name": "PERTURBFLOW_LOG_LEVEL", "value": "INFO" }
+    ],
+    "mountPoints": [
+      { "sourceVolume": "scratch", "containerPath": "/scratch", "readOnly": false }
+    ],
+    "volumes": [
+      {
+        "name": "scratch",
+        "host": { "sourcePath": "/mnt/scratch" }
+      }
+    ],
+    "linuxParameters": {
+      "initProcessEnabled": true,
+      "tmpfs": [
+        { "containerPath": "/tmp", "size": 4096, "mountOptions": ["nosuid", "nodev"] }
+      ]
+    },
+    "logConfiguration": {
+      "logDriver": "awslogs",
+      "options": {
+        "awslogs-group": "/aws/batch/perturbflow",
+        "awslogs-stream-prefix": "perturbflow"
+      }
+    },
+    "user": "perturb:perturb"
+  },
+  "parameters": {
+    "config_path": "/scratch/run/config.yaml",
+    "output_path": "/scratch/run/perturbflow"
+  },
+  "tags": {
+    "Project": "PerturbFlow",
+    "Workload": "perturb-seq"
+  }
+}
