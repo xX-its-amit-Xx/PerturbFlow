@@ -147,10 +147,12 @@ def per_perturbation_qc(
 ) -> pd.DataFrame:
     """Per-perturbation summary: cells, escape rate, on-target knockdown.
 
-    On-target knockdown is the log2FC of the target gene's expression in
-    perturbed cells vs control cells (negative = effective knockdown).
-    Computed directly on log-normalized expression so it works even before
-    DE has run.
+    The on-target log2FC is the canonical "did the screen work?" check.
+    When Mixscape has run we compute it on the KO arm only — escaped (NP)
+    cells dilute the signal toward the null and would make a real
+    knockdown look like noise. The ``on_target_log2fc_all_cells`` column
+    is provided alongside for transparency: a big gap between the two
+    columns is a sign that escape is the dominant story.
     """
     if perturbation_key not in adata.obs.columns:
         raise KeyError(f"adata.obs[{perturbation_key!r}] not found")
@@ -171,6 +173,9 @@ def per_perturbation_qc(
 
     var_index = pd.Index(adata.var_names)
     ctrl_mean = norm[ctrl_mask].mean(axis=0)
+    have_mixscape = (
+        "mixscape_class_global" in adata.obs.columns or "mixscape_perturbed" in adata.obs.columns
+    )
 
     rows = []
     for pert in sorted(set(perts)):
@@ -181,24 +186,37 @@ def per_perturbation_qc(
         if n_cells == 0:
             continue
         escape = float("nan")
+        ko_mask = mask.copy()
         if "mixscape_class_global" in adata.obs.columns:
             sub = adata.obs.loc[mask, "mixscape_class_global"].astype(str)
             escape = float((sub == "NP").mean())
+            ko_mask = mask & (adata.obs["mixscape_class_global"].astype(str) == "KO").values
         elif "mixscape_perturbed" in adata.obs.columns:
             escape = float(1.0 - adata.obs.loc[mask, "mixscape_perturbed"].astype(bool).mean())
+            ko_mask = mask & adata.obs["mixscape_perturbed"].astype(bool).values
 
+        n_ko_cells = int(ko_mask.sum())
         on_target_lfc = float("nan")
+        on_target_lfc_all = float("nan")
         if pert in var_index:
             g = var_index.get_loc(pert)
-            pert_mean = float(norm[mask, g].mean())
-            on_target_lfc = pert_mean - float(ctrl_mean[g])
+            ref_mean = float(ctrl_mean[g])
+            on_target_lfc_all = float(norm[mask, g].mean()) - ref_mean
+            if have_mixscape and n_ko_cells > 0:
+                # KO-only on-target: this is the right number to report as
+                # "did the perturbation work in cells that perturbed?"
+                on_target_lfc = float(norm[ko_mask, g].mean()) - ref_mean
+            else:
+                on_target_lfc = on_target_lfc_all
 
         rows.append(
             {
                 "perturbation": pert,
                 "n_cells": n_cells,
+                "n_ko_cells": n_ko_cells if have_mixscape else n_cells,
                 "escape_fraction": escape,
                 "on_target_log2fc": on_target_lfc,
+                "on_target_log2fc_all_cells": on_target_lfc_all,
             }
         )
     return pd.DataFrame(rows).sort_values("perturbation").reset_index(drop=True)

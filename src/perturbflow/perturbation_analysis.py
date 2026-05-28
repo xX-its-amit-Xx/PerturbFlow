@@ -169,18 +169,43 @@ def _ensure_pca(adata: ad.AnnData, *, layer: str | None) -> None:
     """Make sure ``adata.obsm['X_pca']`` exists, computing one on a log-normalized copy.
 
     We compute on a copy so the caller's ``X`` stays as raw counts (the DE
-    module depends on raw counts being in ``X``).
+    module depends on raw counts being in ``X``). If the caller's X is
+    already log-normalized (max value ≤ 30 and almost all values <10) we
+    skip the normalize step to avoid double-log; otherwise we
+    log-normalize.
     """
     if "X_pca" in adata.obsm:
         return
     tmp = adata.copy()
-    if layer is None:
+    if layer is None and _looks_like_raw_counts(tmp.X):
         sc.pp.normalize_total(tmp, target_sum=1e4)
         sc.pp.log1p(tmp)
     sc.pp.scale(tmp, max_value=10)
     n_comps = min(30, min(tmp.shape) - 1)
     sc.tl.pca(tmp, n_comps=n_comps, random_state=0)
     adata.obsm["X_pca"] = tmp.obsm["X_pca"]
+
+
+def _looks_like_raw_counts(X: object) -> bool:
+    """Return True if X looks like raw integer counts (vs already log-normalized).
+
+    Mirrors the heuristic in :func:`perturbflow.validation.assert_raw_counts`
+    but returns a bool rather than raising.
+    """
+    from scipy import sparse
+
+    vals = X.data if sparse.issparse(X) else np.asarray(X).ravel()
+    if vals.size == 0:
+        return False
+    if (vals < 0).any():
+        return False
+    sample = (
+        vals
+        if vals.size <= 50_000
+        else vals[np.random.default_rng(0).integers(0, vals.size, 50_000)]
+    )
+    is_int = np.isclose(sample, np.round(sample), atol=1e-6)
+    return bool(is_int.mean() > 0.999 and float(vals.max()) >= 50)
 
 
 # ----------------------------------------------------------------------

@@ -30,6 +30,7 @@ import pandas as pd
 from scipy import sparse, stats
 
 from perturbflow.config import DEConfig, InputConfig
+from perturbflow.validation import assert_raw_counts, warn_if_pseudoreplicates
 
 logger = logging.getLogger(__name__)
 
@@ -149,6 +150,11 @@ def run_pseudobulk_de(
     if perturbation_key not in adata.obs.columns:
         raise KeyError(f"adata.obs[{perturbation_key!r}] not found")
 
+    # Gate 1: DESeq2 needs raw integer counts. Fail loud if X looks
+    # log-normalized — silently producing a garbage volcano is the worst
+    # possible failure mode.
+    assert_raw_counts(adata, strict=True)
+
     work = adata
     if cfg.use_mixscape_filter and "mixscape_perturbed" in adata.obs.columns:
         # Keep KO cells (true perturbed) and all control cells; drop escaped.
@@ -165,6 +171,12 @@ def run_pseudobulk_de(
 
     sample_key = icfg.sample_col
     if sample_key is None:
+        n_perts_with_ko = work.obs[perturbation_key].nunique()
+        warn_if_pseudoreplicates(
+            sample_col=None,
+            n_pseudo_replicates=icfg.n_pseudo_replicates,
+            n_perturbations=int(n_perts_with_ko),
+        )
         work = make_pseudo_replicates(
             work,
             n_replicates=icfg.n_pseudo_replicates,
@@ -195,8 +207,13 @@ def run_pseudobulk_de(
         )
 
     results: dict[str, pd.DataFrame] = {}
+    skipped_all_np: list[str] = []
     for pert in pert_levels:
         n_treat = int((pb.obs["perturbation"] == pert).sum())
+        if n_treat == 0:
+            # All cells of this perturbation were Mixscape-NP and dropped.
+            skipped_all_np.append(pert)
+            continue
         if n_treat < cfg.min_replicates_per_group:
             logger.warning(
                 "Skipping DE for perturbation %r: only %d pseudobulk replicates (<%d)",
@@ -216,6 +233,13 @@ def run_pseudobulk_de(
         )
         df["perturbation"] = pert
         results[pert] = df
+    if skipped_all_np:
+        logger.warning(
+            "Skipped DE for %d perturbations whose treatment arm was empty after "
+            "Mixscape filtering (all cells classified NP): %s",
+            len(skipped_all_np),
+            sorted(skipped_all_np)[:5],
+        )
 
     logger.info("Pseudobulk DE complete for %d perturbations", len(results))
     return results
