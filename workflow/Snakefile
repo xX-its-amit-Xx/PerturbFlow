@@ -1,76 +1,178 @@
-# PerturbFlow Snakefile.
+# PerturbFlow Snakefile — proper per-stage DAG.
 #
-# The pipeline is small enough (loadable AnnData fits in memory) that
-# Snakemake is overkill in the strict DAG sense, but it gives us three
-# useful things that the CLI alone doesn't:
-#   1. Per-step caching so a failed pathway-scoring step doesn't force a
-#      re-run of guide assignment.
-#   2. A standard `--profile slurm` / `--profile awsbatch` entrypoint for
-#      cluster execution.
-#   3. A `snakemake --report` page for compliance audits.
+# Each stage is its own rule so:
+#   - A failed pathway-scoring step doesn't force a re-run of guide assignment.
+#   - `snakemake --report` renders a per-stage timing chart.
+#   - Cluster profiles (slurm, awsbatch) get to schedule stages independently.
 #
 # Run:
 #   snakemake -p --configfile workflow/config.yaml -j 8
 #
-# Re-run a single step:
-#   snakemake -p --configfile workflow/config.yaml -j 8 -R run_de
+# Re-run a single stage:
+#   snakemake -p --configfile workflow/config.yaml -j 8 -R mixscape
+#
+# Render the report after a run:
+#   snakemake --report workflow/report.html
 
 from pathlib import Path
 
 configfile: "workflow/config.yaml"
 
 OUTDIR = Path(config["run"]["outdir"])
+STAGES = OUTDIR / "stages"
+CONFIGFILE = workflow.configfiles[0] if workflow.configfiles else "workflow/config.yaml"
+
 
 rule all:
     input:
         OUTDIR / "report.html",
-        OUTDIR / "qc" / "per_cell.csv",
-        OUTDIR / "qc" / "per_guide.csv",
-        OUTDIR / "qc" / "per_perturbation.csv",
         OUTDIR / "provenance.json",
 
-rule run_pipeline:
-    """Single rule that runs the full pipeline.
 
-    The pipeline modules already implement Snakemake-style stage isolation
-    (each writes its own outputs to its own subdirectory); splitting this
-    Snakefile into one-rule-per-stage would mostly be ceremony. We split it
-    only at the two natural cut-points: pipeline (everything except the
-    report) and report (so you can iterate on the report template without
-    re-running DE).
-    """
+rule provenance:
+    """Capture git rev / package versions / config hash before anything runs."""
     output:
-        h5ad = OUTDIR / "perturbflow.h5ad",
-        per_cell = OUTDIR / "qc" / "per_cell.csv",
-        per_guide = OUTDIR / "qc" / "per_guide.csv",
-        per_perturbation = OUTDIR / "qc" / "per_perturbation.csv",
-        cell_state = OUTDIR / "qc" / "cell_state_effects.csv",
-        provenance = OUTDIR / "provenance.json",
-    log:
-        OUTDIR / "logs" / "pipeline.log",
-    threads: workflow.cores
+        OUTDIR / "provenance.json",
     params:
-        config_path = workflow.configfiles[0] if workflow.configfiles else "workflow/config.yaml",
-        outdir = str(OUTDIR),
+        configfile=str(CONFIGFILE),
+    run:
+        from perturbflow.config import load_config
+        from perturbflow.provenance import collect, write
+        cfg = load_config(params.configfile)
+        write(collect(cfg, config_path=params.configfile), output[0])
+
+
+rule load:
+    output:
+        h5ad=STAGES / "01_raw.h5ad",
+    log:
+        OUTDIR / "logs" / "01_load.log",
+    params:
+        configfile=str(CONFIGFILE),
     shell:
-        "perturbflow run "
-        "--config {params.config_path} "
-        "--outdir {params.outdir} "
+        "perturbflow stage load --config {params.configfile} "
+        "--out {output.h5ad} > {log} 2>&1"
+
+
+rule assign:
+    input:
+        h5ad=STAGES / "01_raw.h5ad",
+    output:
+        h5ad=STAGES / "02_assigned.h5ad",
+        per_guide=OUTDIR / "qc" / "per_guide.csv",
+    log:
+        OUTDIR / "logs" / "02_assign.log",
+    params:
+        configfile=str(CONFIGFILE),
+    shell:
+        "perturbflow stage assign --config {params.configfile} "
+        "--in {input.h5ad} --out {output.h5ad} --out {output.per_guide} "
         "> {log} 2>&1"
 
-rule render_report:
-    """Render the HTML report. Cheap; re-runnable without redoing DE."""
+
+rule mixscape:
     input:
-        h5ad = OUTDIR / "perturbflow.h5ad",
-        per_cell = OUTDIR / "qc" / "per_cell.csv",
-        per_perturbation = OUTDIR / "qc" / "per_perturbation.csv",
-        provenance = OUTDIR / "provenance.json",
+        h5ad=STAGES / "02_assigned.h5ad",
     output:
-        report = OUTDIR / "report.html",
+        h5ad=STAGES / "03_mixscape.h5ad",
     log:
-        OUTDIR / "logs" / "report.log",
-    # The report is currently produced as a side-effect of `perturbflow run`,
-    # so this rule is satisfied by the same shell command. We declare it
-    # separately so it shows up as its own node in `--report`.
+        OUTDIR / "logs" / "03_mixscape.log",
+    params:
+        configfile=str(CONFIGFILE),
+    threads: 4
     shell:
-        "test -f {output.report} && echo 'report present' > {log}"
+        "perturbflow stage mixscape --config {params.configfile} "
+        "--in {input.h5ad} --out {output.h5ad} > {log} 2>&1"
+
+
+rule embedding:
+    input:
+        h5ad=STAGES / "03_mixscape.h5ad",
+    output:
+        h5ad=STAGES / "04_embedded.h5ad",
+        cell_state=OUTDIR / "qc" / "cell_state_effects.csv",
+    log:
+        OUTDIR / "logs" / "04_embedding.log",
+    params:
+        configfile=str(CONFIGFILE),
+    threads: 4
+    shell:
+        "perturbflow stage embedding --config {params.configfile} "
+        "--in {input.h5ad} --out {output.h5ad} --out {output.cell_state} "
+        "> {log} 2>&1"
+
+
+rule qc:
+    input:
+        h5ad=STAGES / "04_embedded.h5ad",
+    output:
+        per_cell=OUTDIR / "qc" / "per_cell.csv",
+        per_pert=OUTDIR / "qc" / "per_perturbation.csv",
+    log:
+        OUTDIR / "logs" / "05_qc.log",
+    params:
+        configfile=str(CONFIGFILE),
+    shell:
+        "perturbflow stage qc --config {params.configfile} "
+        "--in {input.h5ad} --out {output.per_cell} --out {output.per_pert} "
+        "> {log} 2>&1"
+
+
+rule de:
+    input:
+        h5ad=STAGES / "04_embedded.h5ad",
+    output:
+        marker=OUTDIR / "de" / ".done",
+    log:
+        OUTDIR / "logs" / "06_de.log",
+    params:
+        configfile=str(CONFIGFILE),
+        de_dir=str(OUTDIR / "de"),
+    threads: 8
+    shell:
+        "perturbflow stage de --config {params.configfile} "
+        "--in {input.h5ad} --out {params.de_dir} > {log} 2>&1 "
+        "&& touch {output.marker}"
+
+
+rule pathways:
+    input:
+        marker=OUTDIR / "de" / ".done",
+    output:
+        csv=OUTDIR / "de" / "pathway_scores.csv",
+    log:
+        OUTDIR / "logs" / "07_pathways.log",
+    params:
+        configfile=str(CONFIGFILE),
+        de_dir=str(OUTDIR / "de"),
+    shell:
+        "perturbflow stage pathways --config {params.configfile} "
+        "--in {params.de_dir} --out {output.csv} > {log} 2>&1"
+
+
+rule report:
+    """Render the HTML report from per-stage outputs.
+
+    The report step calls back into the orchestrator (`perturbflow run`)
+    because the HTML template needs the full bundle (per_cell, per_pert,
+    de_results dict, pathway_scores, provenance) and reading them all
+    from disk and threading them through Jinja is just the orchestrator
+    minus the upstream stages. We point the orchestrator at the same
+    outdir; the upstream artifacts are already there, so it short-circuits.
+    """
+    input:
+        per_cell=OUTDIR / "qc" / "per_cell.csv",
+        per_pert=OUTDIR / "qc" / "per_perturbation.csv",
+        de_marker=OUTDIR / "de" / ".done",
+        pathways=OUTDIR / "de" / "pathway_scores.csv",
+        provenance=OUTDIR / "provenance.json",
+    output:
+        report=OUTDIR / "report.html",
+    log:
+        OUTDIR / "logs" / "08_report.log",
+    params:
+        configfile=str(CONFIGFILE),
+        outdir=str(OUTDIR),
+    shell:
+        "perturbflow run --config {params.configfile} --outdir {params.outdir} "
+        "> {log} 2>&1"
