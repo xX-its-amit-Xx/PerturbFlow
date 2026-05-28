@@ -37,6 +37,7 @@ from perturbflow.perturbation_analysis import (
     run_mixscape,
 )
 from perturbflow.qc import (
+    detect_doublets,
     per_cell_qc,
     per_guide_qc,
     per_perturbation_qc,
@@ -54,6 +55,7 @@ __all__ = [
     "assign_guides",
     "compute_cell_state_effects",
     "compute_perturbation_signature",
+    "detect_doublets",
     "from_replogle_2022_anndata",
     "guide_metadata_from_cellranger_features",
     "multi_guide_concordance",

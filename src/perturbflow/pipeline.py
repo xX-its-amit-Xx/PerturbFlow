@@ -41,6 +41,7 @@ from perturbflow.config import PerturbFlowConfig
 from perturbflow.perturbation_analysis import compute_perturbation_signature
 from perturbflow.provenance import collect as collect_provenance
 from perturbflow.provenance import write as write_provenance
+from perturbflow.qc import detect_doublets
 
 logger = logging.getLogger(__name__)
 
@@ -101,7 +102,21 @@ def run(
     guide_calls = read_guide_calls(config.input.guide_calls)
     guide_metadata = read_guide_metadata(config.input.guide_metadata)
 
-    # --- 2. Guide assignment --------------------------------------------
+    # --- 2a. Optional GEX-side doublet detection ------------------------
+    if config.qc.detect_doublets:
+        adata = detect_doublets(
+            adata,
+            expected_doublet_rate=config.qc.expected_doublet_rate,
+            random_state=config.run.seed,
+        )
+        if config.qc.drop_doublets:
+            keep = ~adata.obs["predicted_doublet"].astype(bool)
+            n_drop = int((~keep).sum())
+            if n_drop:
+                logger.info("Dropping %d predicted doublets before guide assignment", n_drop)
+                adata = adata[keep.values].copy()
+
+    # --- 2b. Guide assignment -------------------------------------------
     adata = assign_guides(adata, guide_calls, guide_metadata, config=config.guide_assignment)
 
     # --- 3. QC tables (pre-mixscape; per_cell rerun later for final report)

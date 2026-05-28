@@ -67,6 +67,16 @@ class QCConfig:
     max_pct_mito: float = 20.0
     min_cells_per_gene: int = 10
     mito_prefix: str = "MT-"
+    # Scrublet-based doublet detection on the GEX matrix. Optional; off by
+    # default because it adds 30-60s on a 10k-cell screen and not every
+    # screen design needs it (e.g., single-MOI runs with strong guide-based
+    # multi-guide filtering).
+    detect_doublets: bool = False
+    expected_doublet_rate: float = 0.05
+    # If True, drop cells flagged as doublets before downstream stages.
+    # If False (default), the column is added to per_cell QC but not used
+    # as a filter — you decide downstream.
+    drop_doublets: bool = False
 
 
 @dataclass(frozen=True)

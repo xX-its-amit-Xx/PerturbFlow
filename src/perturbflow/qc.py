@@ -18,15 +18,86 @@ Three levels:
 from __future__ import annotations
 
 import logging
+import warnings
+from importlib.util import find_spec
 
 import anndata as ad
 import numpy as np
 import pandas as pd
+import scanpy as sc
 from scipy import sparse
 
 from perturbflow.config import QCConfig
 
 logger = logging.getLogger(__name__)
+
+
+def detect_doublets(
+    adata: ad.AnnData,
+    *,
+    expected_doublet_rate: float = 0.05,
+    sim_doublet_ratio: float = 2.0,
+    random_state: int = 0,
+    threshold: float | None = None,
+    fallback_threshold: float = 0.25,
+) -> ad.AnnData:
+    """Run Scrublet-style doublet detection via ``scanpy.pp.scrublet``.
+
+    Adds two columns to ``adata.obs``:
+
+    - ``doublet_score`` (float) — Scrublet's predicted doublet score in
+      [0, 1].
+    - ``predicted_doublet`` (bool) — True for cells above the per-dataset
+      threshold (either Scrublet's auto-detected one or an explicit
+      ``threshold`` override).
+
+    Why this matters for Perturb-seq specifically: a doublet captures two
+    guide assignments, which is the same signal as a real multi-guide cell.
+    The guide_assignment ``multi-guide`` flag catches this from the guide
+    side; running doublet detection from the GEX side gives us a second
+    independent estimate. A cell flagged by *both* is almost certainly a
+    real doublet; one flagged by only one is borderline and worth keeping.
+
+    Scanpy ≥ 1.9 internalized Scrublet, so this function works without the
+    standalone ``scrublet`` package. The only external dep is
+    ``scikit-image`` for Scrublet's automatic threshold detection; when
+    that's missing we fall back to ``fallback_threshold`` (default 0.25,
+    Scrublet's empirically common cutoff). Pass an explicit ``threshold``
+    to skip the auto-detection regardless of skimage availability.
+    """
+    have_skimage = find_spec("skimage") is not None
+    effective_threshold = threshold
+    if effective_threshold is None and not have_skimage:
+        msg = (
+            "scikit-image is not installed; Scrublet's automatic threshold "
+            f"detection requires it. Falling back to threshold={fallback_threshold}. "
+            "Install with `pip install scikit-image` (or "
+            "`pip install perturbflow[doublets]`) to get the auto-threshold."
+        )
+        logger.warning(msg)
+        warnings.warn(msg, stacklevel=2)
+        effective_threshold = fallback_threshold
+
+    sc.pp.scrublet(
+        adata,
+        sim_doublet_ratio=sim_doublet_ratio,
+        expected_doublet_rate=expected_doublet_rate,
+        threshold=effective_threshold,
+        random_state=random_state,
+        verbose=False,
+    )
+    n_predicted = int(adata.obs["predicted_doublet"].astype(bool).sum())
+    used_threshold = float(
+        adata.uns.get("scrublet", {}).get("threshold", effective_threshold or float("nan"))
+    )
+    logger.info(
+        "Doublet detection: %d / %d cells flagged (%.2f%%) at threshold %.3f",
+        n_predicted,
+        adata.n_obs,
+        100.0 * n_predicted / max(adata.n_obs, 1),
+        used_threshold,
+    )
+    return adata
 
 
 def per_cell_qc(
@@ -79,6 +150,8 @@ def per_cell_qc(
         "mixscape_class",
         "mixscape_class_global",
         "mixscape_perturbed",
+        "doublet_score",
+        "predicted_doublet",
     ):
         if col in adata.obs.columns:
             df[col] = adata.obs[col].values

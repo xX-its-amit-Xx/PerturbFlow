@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Doublet detection** (`qc.detect_doublets`) wrapping
+  `scanpy.pp.scrublet`. Adds `obs['doublet_score']` and
+  `obs['predicted_doublet']`. Wired into the pipeline via
+  `qc.detect_doublets` / `qc.drop_doublets` config flags (both off by
+  default). Falls back to an explicit threshold (0.25) when
+  scikit-image isn't available, so the hook works without the
+  `perturbflow[doublets]` extra installed.
+- **`perturbflow[doublets]` install extra** (`scrublet>=0.2.3` +
+  scikit-image).
+- **"Project status and roadmap" section** in README explicitly listing
+  what's shipped, what's in progress (PyPI publish, Zenodo DOI), and
+  what's TBD (Mixscale wrapper, batch correction integration,
+  multi-factor DE design, Snakemake cluster profiles).
+
+### Added
+
 - **CellRanger adapter** (`adapters.read_cellranger_protospacer_calls`)
   for the 10x `crispr_analysis/protospacer_calls_per_cell.csv` schema.
   Pipe-separated multi-feature cells are expanded to one row per

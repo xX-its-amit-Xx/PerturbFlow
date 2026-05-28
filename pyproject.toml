@@ -51,6 +51,7 @@ mixscape = ["pertpy>=1.1", "filelock>=3.13"]
 de = ["pydeseq2>=0.4"]
 pathways = ["decoupler>=1.6", "omnipath>=1.0"]
 workflow = ["snakemake>=8"]
+doublets = ["scrublet>=0.2.3"]
 all = [
     "pertpy>=1.1",
     "filelock>=3.13",
@@ -58,6 +59,7 @@ all = [
     "decoupler>=1.6",
     "omnipath>=1.0",
     "snakemake>=8",
+    "scrublet>=0.2.3",
 ]
 dev = [
     "pytest>=7.4",

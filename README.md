@@ -175,12 +175,20 @@ justifications.
 
 ## Citation
 
-If PerturbFlow helps your project, please cite it:
+If PerturbFlow helps your project, please cite it. Until the Zenodo
+record is minted, cite the GitHub release tag plus the specific commit
+hash you used:
 
 ```
 Shenoy A. PerturbFlow: an opinionated Perturb-seq analysis pipeline.
-Zenodo (2026). DOI: 10.5281/zenodo.0000000  [placeholder — release pending]
+GitHub (2026). https://github.com/xX-its-amit-Xx/PerturbFlow
+Commit: <git rev-parse HEAD>
 ```
+
+A machine-readable citation block is in [CITATION.cff](CITATION.cff).
+The Zenodo DOI is **TBD** — it will be minted on the first tagged
+release (`v0.1.0`), at which point this section will be updated with the
+DOI and a permanent archive link.
 
 When PerturbFlow drives a published analysis, please also cite the upstream
 methods it composes:
@@ -195,6 +203,51 @@ methods it composes:
   2, vbac016 (2022). — pathway scoring
 
 ---
+
+## Project status and roadmap
+
+PerturbFlow follows semantic versioning. The current version is **0.1.0**,
+which means the public API is stable for routine use but reserves the
+right to evolve in 0.2.0+.
+
+### Done (shipped in current `main`)
+
+- Full pipeline: IO → guide assignment → Mixscape → pseudobulk DE →
+  pathway scoring → HTML report.
+- CellRanger 7.x adapter, Replogle 2022 adapter.
+- Validity guards: raw-counts hard-fail, pseudo-replicate warning,
+  KO-only on-target metric, multi-guide concordance.
+- Per-stage Snakemake DAG with cached intermediates.
+- Doublet detection via `scanpy.pp.scrublet` (optional, off by default).
+- pertpy parity test + ground-truth recovery integration test in CI.
+- Docker (mamba multi-stage) + AWS Batch job definition.
+- Three example notebooks: synthetic walkthrough, CellRanger path,
+  real-data Replogle 2022 with known-biology recovery check.
+
+### In progress
+
+- **PyPI publishing.** Release workflow ([release.yml](.github/workflows/release.yml))
+  is wired and tested; the first publish will fire when `v0.1.0` is
+  tagged and the `PYPI_API_TOKEN` repo secret is in place. Until then,
+  install with `pip install git+https://github.com/xX-its-amit-Xx/PerturbFlow`.
+- **Zenodo DOI.** Will be minted on the `v0.1.0` GitHub release via the
+  Zenodo–GitHub integration. The DOI placeholder in the citation block
+  above will be replaced at that point.
+
+### TBD (not started; open for contribution)
+
+- Continuous-effect classifier (Mixscale wrapper). Useful for CRISPRa
+  screens where the per-cell effect is dose-dependent.
+- Built-in batch correction integration (Harmony / scVI passes that run
+  before guide assignment). Currently you bring your own and pass an
+  `h5ad`.
+- Native multi-factor DE design (perturbation × timepoint,
+  perturbation × donor). Currently you split inputs and join post-hoc.
+- Cluster execution profiles for Snakemake (Slurm, AWS Batch, K8s).
+  The DAG is profile-ready; the profiles themselves are TBD.
+
+If any of these block your work, please [open an issue](https://github.com/xX-its-amit-Xx/PerturbFlow/issues)
+so they can be prioritized.
 
 ## License
 
