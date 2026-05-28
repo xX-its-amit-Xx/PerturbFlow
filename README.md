@@ -138,8 +138,38 @@ integration upstream and pass an `h5ad`.
 - [Methodology](docs/methodology.md) — the *why* behind every step
 - [Cookbook](docs/cookbook.md) — recipes for common real-world questions
 - [Architecture](docs/architecture.md) — module layout and extension points
-- [Example notebook](examples/replogle2022_walkthrough.ipynb) — end-to-end on
-  public data
+- [CellRanger → PerturbFlow notebook](examples/cellranger_to_perturbflow.ipynb)
+  — zero-hand-rolled-CSV path from CellRanger 7.x output
+- [Replogle 2022 real-data notebook](examples/replogle2022_real_data.ipynb)
+  — runs the pipeline on the actual public dataset with a known-biology
+  recovery check
+- [Synthetic fixture walkthrough](examples/replogle2022_walkthrough.ipynb)
+  — runnable end-to-end on the built-in test fixture, no download required
+
+## Validity and correctness
+
+PerturbFlow ships validity guards that catch the most common failure
+modes other Perturb-seq pipelines silently produce wrong numbers for:
+
+- **Raw-counts guard** — DE refuses to run on log-normalized X. Without
+  this, the volcano looks fine but every gene is wrong.
+- **Pseudo-replicate warning** — loud warning at the DE call site that
+  hash-bin pseudo-replicates produce anticonservative p-values.
+- **Mixscape-KO-only on-target log2FC** — the "did the screen work?"
+  metric excludes escaped cells (which dilute the signal). The
+  all-cells value is reported alongside for transparency.
+- **Multi-guide concordance** — when running per-guide DE, the
+  `multi_guide_concordance` helper flags guides whose effects are not
+  reproducible across the per-gene library (off-target signal).
+- **Parity with pertpy** — a test in CI verifies our Mixscape wrapper
+  produces the same classifications as directly-called pertpy, so
+  upstream API drift never silently changes our outputs.
+- **Ground-truth recovery** — a CI test runs the full pipeline on a
+  synthetic fixture with known downstream genes and verifies the
+  pipeline finds them.
+
+See [docs/methodology.md](docs/methodology.md) for the full statistical
+justifications.
 
 ---
 

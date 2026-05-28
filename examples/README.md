@@ -1,5 +1,21 @@
 # Examples
 
+## `cellranger_to_perturbflow.ipynb`
+
+The shortest path from a CellRanger 7.x output directory to a PerturbFlow
+run — uses `read_cellranger_protospacer_calls` + `guide_metadata_from_cellranger_features`
+so you don't write any CSVs by hand. **Read this first if you're starting
+from a 10x screen.**
+
+## `replogle2022_real_data.ipynb`
+
+Pipeline on the actual Replogle 2022 K562 essential screen (download
+instructions included). Includes a known-biology recovery check that
+verifies five hand-picked perturbations (RPL19, EIF3D, POLR2A, MYC,
+TP53) recover their expected Hallmark pathways with the expected
+direction. Falls back to the synthetic fixture if the data file isn't
+present, so the notebook always executes.
+
 ## `replogle2022_walkthrough.ipynb`
 
 A complete pipeline walkthrough on the package's built-in synthetic

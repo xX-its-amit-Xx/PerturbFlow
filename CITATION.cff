@@ -1,0 +1,104 @@
+cff-version: 1.2.0
+title: "PerturbFlow: an opinionated Perturb-seq analysis pipeline"
+message: "If you use PerturbFlow in your research, please cite both this software and the upstream methods it composes."
+type: software
+authors:
+  - given-names: Amit
+    family-names: Shenoy
+    email: shenoy.am@husky.neu.edu
+repository-code: "https://github.com/xX-its-amit-Xx/PerturbFlow"
+url: "https://github.com/xX-its-amit-Xx/PerturbFlow"
+license: GPL-3.0-or-later
+version: 0.1.0
+date-released: "2026-05-27"
+keywords:
+  - perturb-seq
+  - crispr-screen
+  - single-cell
+  - mixscape
+  - functional-genomics
+  - bioinformatics
+preferred-citation:
+  type: software
+  title: "PerturbFlow: an opinionated Perturb-seq analysis pipeline"
+  authors:
+    - given-names: Amit
+      family-names: Shenoy
+  year: 2026
+  url: "https://github.com/xX-its-amit-Xx/PerturbFlow"
+  notes: "Please also cite the upstream methods PerturbFlow wraps: Papalexi et al. 2021 (Mixscape), Love et al. 2014 (DESeq2), and Badia-i-Mompel et al. 2022 (decoupleR). See README citation block for full references."
+references:
+  - type: article
+    authors:
+      - given-names: Efthymia
+        family-names: Papalexi
+      - given-names: Eleni P.
+        family-names: Mimitou
+      - given-names: Andrew W.
+        family-names: Butler
+      - given-names: Samantha
+        family-names: Foster
+      - given-names: Bernadette
+        family-names: Bracken
+      - given-names: William M.
+        family-names: Mauck III
+      - given-names: Avi
+        family-names: Wessels
+      - given-names: Yuhan
+        family-names: Hao
+      - given-names: Bertrand Z.
+        family-names: Yeung
+      - given-names: Peter
+        family-names: Smibert
+      - given-names: Rahul
+        family-names: Satija
+    title: "Characterizing the molecular regulation of inhibitory immune checkpoints with multimodal single-cell screens"
+    journal: "Nature Genetics"
+    volume: 53
+    pages: "322-331"
+    year: 2021
+    doi: 10.1038/s41588-021-00778-2
+  - type: article
+    authors:
+      - given-names: Michael I.
+        family-names: Love
+      - given-names: Wolfgang
+        family-names: Huber
+      - given-names: Simon
+        family-names: Anders
+    title: "Moderated estimation of fold change and dispersion for RNA-seq data with DESeq2"
+    journal: "Genome Biology"
+    volume: 15
+    pages: "550"
+    year: 2014
+    doi: 10.1186/s13059-014-0550-8
+  - type: article
+    authors:
+      - given-names: Pau
+        family-names: Badia-i-Mompel
+      - given-names: Jesús
+        family-names: Vélez Santiago
+      - given-names: Jana
+        family-names: Braunger
+      - given-names: Celina
+        family-names: Geiss
+      - given-names: Daniel
+        family-names: Dimitrov
+      - given-names: Sophia
+        family-names: Müller-Dott
+      - given-names: Petr
+        family-names: Taus
+      - given-names: Aurélien
+        family-names: Dugourd
+      - given-names: Christian H.
+        family-names: Holland
+      - given-names: Ricardo O.
+        family-names: Ramirez Flores
+      - given-names: Julio
+        family-names: Saez-Rodriguez
+    title: "decoupleR: ensemble of computational methods to infer biological activities from omics data"
+    journal: "Bioinformatics Advances"
+    volume: 2
+    pages: "vbac016"
+    year: 2022
+    doi: 10.1093/bioadv/vbac016

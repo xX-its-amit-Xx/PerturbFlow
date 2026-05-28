@@ -1,0 +1,69 @@
+name: Release
+
+# Publishes to PyPI when a version tag is pushed. Requires:
+#   - PYPI_API_TOKEN secret on the repo
+#   - A version tag matching v*.*.* on main
+#
+# Tag a release with:
+#   git tag -a v0.1.0 -m "Release v0.1.0"
+#   git push origin v0.1.0
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build sdist + wheel
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          cache-dependency-glob: "pyproject.toml"
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install build deps
+        run: uv pip install --system build twine
+      - name: Build
+        run: python -m build
+      - name: Twine check
+        run: twine check dist/*
+      - name: Verify version matches tag
+        run: |
+          tag="${GITHUB_REF##*/v}"
+          pkg_version=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+          if [ "$tag" != "$pkg_version" ]; then
+            echo "::error::Tag v$tag does not match pyproject version $pkg_version"
+            exit 1
+          fi
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    name: Publish to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    environment: release
+    steps:
+      - name: Download dist
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - name: Publish
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_API_TOKEN }}
+          skip-existing: true
